@@ -20,7 +20,7 @@
 	       peers,
 	       last_promise,
 	       promises_received,
-	       %% TODO: Store only the identifier, not the process name
+	       promised_values,
 	       leader}).
 
 -define(NAME, paxos).
@@ -61,8 +61,9 @@ init(Args) ->
 		  accepted_value = 'None',
 		  proposed_value = 'None',
 		  peers = NewPeers,
-		  last_promise = 0,
+		  last_promise = -1,
 		  promises_received = 0,
+		  promised_values = [],
 		  leader = Leader},
 	    {ok, prepare, Init};
 	false ->
@@ -71,8 +72,9 @@ init(Args) ->
 		  accepted_value = 'None',
 		  proposed_value = 'None',
 		  peers = Peers,
-		  last_promise = 0,
+		  last_promise = -1,
 		  promises_received = 0,
+		  promised_values = [],
 		  leader = Leader},
 	    {ok, prepare, Init}
     end.
@@ -84,7 +86,9 @@ prepare({prepare, acceptor, Value, Seq}, Data) when Seq > Data#state.last_promis
     %% Send promise to leader
     %% I should take care of the case when the acceptor has not accepted a value yet
     %% but I should do it another day...
-    gen_fsm:send_event({?NAME, Data#state.leader}, {accept_request, proposer, Data#state.accepted_value}),
+    gen_fsm:send_event({?NAME, Data#state.leader}, {accept_request, proposer,
+						    Data#state.last_promise,
+						    Data#state.accepted_value}),
     {next_state, prepare, Data#state{proposed_value = Value, last_promise = Seq}};
 
 %% I should return NACK
@@ -101,18 +105,28 @@ prepare({prepare, proposer, Value}, Data) ->
     {next_state, accept_request, Data#state{seq_num = NextSeq, proposed_value = Value}}.
 
 %% Do something with the values received
-accept_request({accept_request, proposer, Value}, Data) 
+accept_request({accept_request, proposer, Seq, Value}, Data) 
   when Data#state.promises_received < length(Data#state.peers) / 2 ->
     P = Data#state.promises_received + 1,
-    {next_state, accept_request, Data#state{promises_received = P}};
+    io:format("Have not received quorum yet~n"),
+    Pv = [{Seq, Value} | Data#state.promised_values],
+    {next_state, accept_request, Data#state{promises_received = P, promised_values = Pv}};
 
-accept_request({accept_request, proposer, Value}, Data) ->
+accept_request({accept_request, proposer, Seq, Value}, Data) ->
     P = Data#state.promises_received + 1,
+    Pv = [{Seq, Value} | Data#state.promised_values],
     %% Do something else here :P
     %% Remember to reset the counter of the received promises
+    %% And also clean the promised values
     io:format("Received promises from quorum, hooray!~n"),
+    case compute_decide_value(Pv) of
+	{ok, decide} ->
+	    io:format("YEAY I can decide whatever I want~n");
+	{ok, Seq, Value} ->
+	    io:format("I should decide val ~p with seq: ~p~n", [Value, Seq])
+    end,
     {next_state, promise, Data#state{promises_received = P}}.
-
+    
 promise({something}, _Data) ->
     {stop, normal, null}.
 
@@ -147,11 +161,14 @@ handle_info(_Info, State, Data) ->
 print_state(State, Data) ->
     io:format("Data ~p~n", [Data]).
 
-peers({?NAME, Leader}, Peers) ->
-    case Leader == node() of
+compute_decide_value(PromisedValues) ->
+    SortedPv = lists:keysort(1, PromisedValues),
+    io:format("Sorted:~p~n", [SortedPv]),
+    {Seq, Value} = lists:last(SortedPv),
+    case Value == 'None' of
 	true ->
-	    Peers;
+	    {ok, decide};
 	false ->
-	    [Leader | Peers]
+	    {ok, Seq, Value}
     end.
 
