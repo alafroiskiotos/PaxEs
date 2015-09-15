@@ -82,7 +82,7 @@ prepare({prepare, proposer, Value}, Data) ->
 
 %% Do something with the values received
 accept_request({accept_request, proposer, Value}, Data) 
-  when Data#state.promises_received + 1 < length(Data#state.peers) / 2 ->
+  when Data#state.promises_received < length(Data#state.peers) / 2 ->
     P = Data#state.promises_received + 1,
     {next_state, accept_request, Data#state{promises_received = P}};
 
