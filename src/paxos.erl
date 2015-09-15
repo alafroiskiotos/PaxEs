@@ -3,7 +3,7 @@
 -behaviour(gen_fsm).
 
 %% Public API
--export([start/1, start_link/0]).
+-export([start/0, start/1, start_link/0]).
 
 %% Client API
 -export([prop/1, print_state/0, get_data/0, set_data/1]).
@@ -26,8 +26,10 @@
 -define(NAME, paxos).
 
 %% Public API
-start(Peers) ->
-    gen_fsm:start({local, ?NAME}, ?MODULE, Peers, []).
+start(Args) ->
+    gen_fsm:start({local, ?NAME}, ?MODULE, [Args], []).
+start() ->
+    gen_fsm:start({local, ?NAME}, ?MODULE, [], []).
 
 start_link() ->
     gen_fsm:start_link({local, ?NAME}, ?MODULE, [], []).
@@ -46,16 +48,37 @@ set_data(Data) ->
     gen_fsm:send_all_state_event(?NAME, {mngm, set_data, Data}).
 
 %% FSM API
-init([Leader | Peers]) ->
-    Init = #state{seq_num = utils:pid_to_num(pid_to_list(self())),
+init(Args) ->
+    {ok, Terms} = file:consult('config'),
+    {leader, Leader} = lists:keyfind(leader, 1, Terms),
+    {peers, Peers} = lists:keyfind(peers, 1, Terms),
+    io:format("Leader is: ~p~n", [Leader]),
+    io:format("Peers are: ~p~n", [Peers]),
+    case lists:member(leader, Args) of
+	true ->
+	    %% I am the Leader
+	    NewPeers = lists:keydelete(node(), 2, Peers),
+	    Init = #state{seq_num = utils:pid_to_num(pid_to_list(self())),
 		  accepted_value = 'None',
 		  proposed_value = 'None',
-		  peers = peers(Leader, Peers),
+		  peers = NewPeers,
 		  last_promise = 0,
 		  promises_received = 0,
 		  leader = Leader},
-    io:format("~p~n", [Init]),
-    {ok, prepare, Init}.
+	    io:format("I AM THE LEADER~n"),
+	    {ok, prepare, Init};
+	false ->
+	    %% I am slave
+	    Init = #state{seq_num = utils:pid_to_num(pid_to_list(self())),
+		  accepted_value = 'None',
+		  proposed_value = 'None',
+		  peers = Peers,
+		  last_promise = 0,
+		  promises_received = 0,
+		  leader = Leader},
+	    io:format("I AM SLAVE~n"),
+	    {ok, prepare, Init}
+    end.
 
 %% States
 prepare({prepare, acceptor, Value, Seq}, Data) when Seq > Data#state.last_promise ->
