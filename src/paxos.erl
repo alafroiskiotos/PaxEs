@@ -24,6 +24,7 @@
 	       leader}).
 
 -define(NAME, paxos).
+-define(CONFIG, 'config').
 
 %% Public API
 start(Args) ->
@@ -49,15 +50,13 @@ set_data(Data) ->
 
 %% FSM API
 init(Args) ->
-    {ok, Terms} = file:consult('config'),
+    {ok, Terms} = file:consult(?CONFIG),
     {leader, Leader} = lists:keyfind(leader, 1, Terms),
     {peers, Peers} = lists:keyfind(peers, 1, Terms),
-    io:format("Leader is: ~p~n", [Leader]),
-    io:format("Peers are: ~p~n", [Peers]),
     case lists:member(leader, Args) of
 	true ->
 	    %% I am the Leader
-	    NewPeers = lists:keydelete(node(), 2, Peers),
+	    NewPeers = lists:delete(node(), Peers),
 	    Init = #state{seq_num = utils:pid_to_num(pid_to_list(self())),
 		  accepted_value = 'None',
 		  proposed_value = 'None',
@@ -65,7 +64,6 @@ init(Args) ->
 		  last_promise = 0,
 		  promises_received = 0,
 		  leader = Leader},
-	    io:format("I AM THE LEADER~n"),
 	    {ok, prepare, Init};
 	false ->
 	    %% I am slave
@@ -76,7 +74,6 @@ init(Args) ->
 		  last_promise = 0,
 		  promises_received = 0,
 		  leader = Leader},
-	    io:format("I AM SLAVE~n"),
 	    {ok, prepare, Init}
     end.
 
@@ -87,7 +84,7 @@ prepare({prepare, acceptor, Value, Seq}, Data) when Seq > Data#state.last_promis
     %% Send promise to leader
     %% I should take care of the case when the acceptor has not accepted a value yet
     %% but I should do it another day...
-    gen_fsm:send_event(Data#state.leader, {accept_request, proposer, Data#state.accepted_value}),
+    gen_fsm:send_event({?NAME, Data#state.leader}, {accept_request, proposer, Data#state.accepted_value}),
     {next_state, prepare, Data#state{proposed_value = Value, last_promise = Seq}};
 
 %% I should return NACK
@@ -100,7 +97,7 @@ prepare({prepare, proposer, Value}, Data) ->
     NextSeq = Data#state.seq_num + 1,
     io:format("Proposing value ~p with seq: ~p~n", [Value, NextSeq]),
     %% Broadcast to acceptors
-    utils:bcast_proposal(Data#state.peers, Value, NextSeq),
+    utils:bcast_proposal(Data#state.peers, ?NAME, Value, NextSeq),
     {next_state, accept_request, Data#state{seq_num = NextSeq, proposed_value = Value}}.
 
 %% Do something with the values received

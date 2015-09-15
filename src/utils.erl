@@ -1,6 +1,6 @@
 -module(utils).
 
--export([pid_to_num/1, bcast_proposal/3]).
+-export([pid_to_num/1, bcast_proposal/4]).
 
 pred(X, Acc) ->
     case X of
@@ -15,6 +15,6 @@ pred(X, Acc) ->
 pid_to_num([_F | Pid]) ->
     lists:foldl(fun(X, Acc) -> pred(X, Acc) end, 0, Pid).
     
-bcast_proposal(Acceptors, Value, Seq) ->
-    lists:map(fun(A) -> gen_fsm:send_event(A, {prepare, acceptor, Value, Seq}) end, Acceptors).
+bcast_proposal(Acceptors, ProcName, Value, Seq) ->
+    lists:map(fun(A) -> gen_fsm:send_event({ProcName, A}, {prepare, acceptor, Value, Seq}) end, Acceptors).
 

@@ -1,2 +1,2 @@
-{leader, {paxos, 'foo@earendil'}}.
-{peers, [{paxos, 'foo@earendil'}, {paxos, 'bar@earendil'}, {paxos, 'ble@earendil'}]}.
+{leader, 'foo@earendil'}.
+{peers, ['foo@earendil', 'bar@earendil', 'ble@earendil']}.
