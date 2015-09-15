@@ -6,10 +6,10 @@
 -export([start/1, start_link/0]).
 
 %% Client API
--export([prop/1, print_state/0]).
+-export([prop/1, print_state/0, get_data/0, set_data/1]).
 
 %% FSM API
--export([init/1, handle_event/3, code_change/4, terminate/3, handle_info/3]).
+-export([init/1, handle_event/3, handle_sync_event/4, code_change/4, terminate/3, handle_info/3]).
 
 %% FSM States
 -export([prepare/2, promise/2, accept_request/2]).
@@ -38,6 +38,12 @@ prop(Value) ->
 
 print_state() ->
     gen_fsm:send_all_state_event(?NAME, {mngm, current_state}).
+
+get_data() ->
+    gen_fsm:sync_send_all_state_event(?NAME, {mngm, get_data}).
+
+set_data(Data) ->
+    gen_fsm:send_all_state_event(?NAME, {mngm, set_data, Data}).
 
 %% FSM API
 init([Leader | Peers]) ->
@@ -97,7 +103,13 @@ handle_event({state, reset}, State, _Data) ->
     {next_state, State, #state{}};
 handle_event({mngm, current_state}, State, Data) ->
     print_state(State, Data),
-    {next_state, State, Data}.
+    {next_state, State, Data};
+handle_event({mngm, set_data, NewData}, State, _Data) ->
+    {next_state, State, NewData}.
+
+
+handle_sync_event({mngm, get_data}, _From, State, Data) ->
+    {reply, Data, State, Data}.
 
 code_change(_OldVsn, StateName, Data, _Extra) ->
     {ok, StateName, Data}.
