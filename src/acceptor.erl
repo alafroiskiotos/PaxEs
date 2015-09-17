@@ -1,4 +1,4 @@
--module(paxos).
+-module(acceptor).
 
 -behaviour(gen_fsm).
 
