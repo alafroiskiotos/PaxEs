@@ -5,7 +5,7 @@
 -include_lib("PaxEs/include/paxos_def.hrl").
 
 %% Public API
--export([start/0, start/1, start_link/0]).
+-export([start/0, start_link/0]).
 
 %% Client API
 -export([print_state/0, get_data/0, set_data/1, stop/0]).
@@ -14,11 +14,14 @@
 -export([init/1, handle_event/3, handle_sync_event/4, code_change/4, terminate/3, handle_info/3]).
 
 %% FSM States
--export([prepare/2]).
+-export([prepare/2, accept_request/2]).
+
+-record(acc_state, {accepted_value,
+		   peers,
+		   last_promise,
+		   leader}).
 
 %% Public API
-start(Args) ->
-    gen_fsm:start({local, ?ACC_NAME}, ?MODULE, [Args], []).
 start() ->
     gen_fsm:start({local, ?ACC_NAME}, ?MODULE, [], []).
 
@@ -42,38 +45,40 @@ stop() ->
 %% FSM API
 init(_Args) ->
     {{leader, Leader}, {peers, Peers}} = utils:read_config(),
-    InitState = #state{seq_num = utils:pid_to_num(pid_to_list(self())),
-		      accepted_value = '',
-		      proposed_value = '',
-		      peers = Peers,
-		      last_promise = -1,
-		      promises_received = 0,
-		      promised_values = [],
-		       leader = Leader},
+    InitState = #acc_state{accepted_value = '',
+			   peers = Peers,
+			   last_promise = -1,
+			   leader = Leader},
     {ok, prepare, InitState}.
 
 %% States
-prepare({prepare, acceptor, Value, Seq}, Data) when Seq > Data#state.last_promise ->
+prepare({prepare, acceptor, Value, Seq}, Data) when Seq > Data#acc_state.last_promise ->
     io:format("Proposal with higher sequence number PROMISE~n"),
-    io:format("Value: ~p, Seq: ~p, seq_num: ~p", [Value, Seq, Data#state.seq_num]),
+    io:format("Value: ~p, Seq: ~p, last_promise: ~p~n", [Value, Seq, Data#acc_state.last_promise]),
     %% Send promise to leader
     %% I should take care of the case when the acceptor has not accepted a value yet
     %% but I should do it another day...
-    gen_fsm:send_event({?PROP_NAME, Data#state.leader}, {proposer, accept_request,
-						    Data#state.last_promise,
-						    Data#state.accepted_value}),
-    {next_state, prepare, Data#state{proposed_value = Value, last_promise = Seq}};
+    gen_fsm:send_event({?PROP_NAME, Data#acc_state.leader}, {proposer, accept_request,
+						    Data#acc_state.last_promise,
+						    Data#acc_state.accepted_value}),
+    {next_state, accept_request, Data#acc_state{last_promise = Seq}};
 
 %% I should return NACK
-prepare({prepare, acceptor, Value, Seq}, Data) when Seq =< Data#state.last_promise ->
+prepare({prepare, acceptor, Value, Seq}, Data) when Seq =< Data#acc_state.last_promise ->
     io:format("Proposal with less sequence number~n"),
-    io:format("Value: ~p, Seq: ~p, seq_num: ~p", [Value, Seq, Data#state.seq_num]),
+    io:format("Value: ~p, Seq: ~p, last_promise: ~p~n", [Value, Seq, Data#acc_state.last_promise]),
     {next_state, prepare, Data}.
+
+accept_request({acceptor, accept, Value}, Data) ->
+    io:format("Accepted value ~p~n", [Value]),
+    NewData = Data#acc_state{accepted_value = Value},
+    %% TODO: I should send a message to learners about the outcome
+    {next_state, prepare, NewData}.
 
 %% Generic States
 handle_event({state, reset}, State, _Data) ->
     io:format("Reseting...~n"),
-    {next_state, State, #state{}};
+    {next_state, State, #acc_state{}};
 handle_event({mngm, current_state}, State, Data) ->
     print_state(State, Data),
     {next_state, State, Data};

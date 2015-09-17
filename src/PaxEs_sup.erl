@@ -36,7 +36,6 @@ init(_Args) ->
 	       worker,
 	       [acceptor, utils]},
     {{leader, Leader}, {_, _}} = utils:read_config(),
-    io:format(Leader),
     case Leader == node() of
 	true ->
 	    Proposer = {proposer, {proposer, start_link, []},

@@ -5,14 +5,4 @@
 -define(PROP_NAME, proposer).
 
 %% Configuration file -- TO BE REMOVED
--define(CONFIG, 'config').
-
-%% FSM State -- SHOULD BE REVISED
--record(state, {seq_num = 0,
-	       accepted_value,
-	       proposed_value,
-	       peers,
-	       last_promise,
-	       promises_received,
-	       promised_values,
-	       leader}).
+-define(CONFIG, 'src/config').
