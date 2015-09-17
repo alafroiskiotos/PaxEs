@@ -35,26 +35,20 @@ stop() ->
     gen_fsm:send_all_state_event(?PROP_NAME, {mngm, stop}).
 
 %% FSM API
-init(Args) ->
-    case lists:member(leader, Args) of
-	true ->
-	    %% I am the leader, I should do something
-	    {{leader, _}, {peers, Peers}} = utils:read_config(),
-	    InitState = #state{seq_num = utils:pid_to_num(pid_to_list(self())),
-			      %% It shouldn't be here
-			      accepted_value = '',
-			      proposed_value = '',
-			      peers = Peers,
-			      %% It shouldn't be here
-			      last_promise = -1,
-			      promises_received = 0,
-			      promised_values = [],
-			      leader = self()},
-	    {ok, propose, InitState};
-	false ->
-	    %% I am not the leader, I should not care
-	    {stop, not_leader}
-    end.
+init(_Args) ->
+    %% I am the leader, I should do something
+    {{leader, _}, {peers, Peers}} = utils:read_config(),
+    InitState = #state{seq_num = utils:pid_to_num(pid_to_list(self())),
+		       %% It shouldn't be here
+		       accepted_value = '',
+		       proposed_value = '',
+		       peers = Peers,
+		       %% It shouldn't be here
+		       last_promise = -1,
+		       promises_received = 0,
+		       promised_values = [],
+		       leader = self()},
+    {ok, propose, InitState}.
 
 %% Not implemented yet
 handle_event({mngm, stop}, _State, Data) ->

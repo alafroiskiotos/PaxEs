@@ -1,16 +1,15 @@
 {application, 'PaxEs',
- [{description, "An OTP application"},
+ [{description, "Yet another implementation of Paxos algorithm"},
   {vsn, "0.1.0"},
-  {registered, []},
+  {registered, ['PaxEs_sup', proposer, acceptor]},
   {mod, {'PaxEs_app', []}},
   {applications,
    [kernel,
     stdlib
    ]},
   {env,[]},
-  {modules, []},
-
-  {contributors, []},
+  {modules, ['PaxEs_sup', 'PaxEs_app', proposer, acceptor]},
+  {contributors, ['Antonios Kouzoupis']},
   {licenses, []},
   {links, []}
  ]}.
