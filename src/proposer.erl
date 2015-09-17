@@ -75,7 +75,7 @@ propose({proposer, prepare, Value}, Data) ->
     NextSeq = Data#prop_state.seq_num + 1,
     io:format("PROPOSER Proposing value ~p with seq num ~p~n", [Value, NextSeq]),
     %% Broadcast to acceptors
-    utils:bcast_proposal(Data#prop_state.peers, ?ACC_NAME, Value, NextSeq),
+    utils:bcast(proposal_bcast(?ACC_NAME, Value, NextSeq), Data#prop_state.peers),
     {next_state, accept_request, Data#prop_state{seq_num = NextSeq, proposed_value = Value}}.
 
 accept_request({proposer, accept_request, Seq, Value}, Data)
@@ -85,23 +85,34 @@ accept_request({proposer, accept_request, Seq, Value}, Data)
 accept_request({proposer, accept_request, Seq, Value}, Data) ->
     io:format("PROPOSER received promises from quorum, hooray!~n"),
     NewData = update_promises_state(Seq, Value, Data),
-    %% In any case I should inform the acceptors
+    %% Inform the acceptors
     case compute_decide_value(NewData#prop_state.promised_values) of
 	{ok, decide} ->
 	    io:format("PROPOSER YEAY I can decide whatever I want~n"),
-	    utils:bcast_accept(Data#prop_state.peers, ?ACC_NAME, Data#prop_state.proposed_value),
+	    utils:bcast(accept_bcast(?ACC_NAME, Data#prop_state.proposed_value),
+			Data#prop_state.peers),
 	    {next_state, propose, Data#prop_state{proposed_value = '',
 						  promises_received = 0,
 						  promised_values = []}};
 	{ok, Seq, Value} ->
 	    io:format("PROPOSER hhmm I should decide val ~p with seq ~p~n", [Value, Seq]),
-	    utils:bcast_accept(Data#prop_state.peers, ?ACC_NAME, Value),
+	    utils:bcast(accept_bcast(?ACC_NAME, Value), Data#prop_state.peers),
 	    {next_state, propose, Data#prop_state{proposed_value = '',
 						  promises_received = 0,
 						  promised_values = []}}
     end.
 
 %% Private functions
+accept_bcast(ProcName, Value) ->
+    fun(A) ->
+	    gen_fsm:send_event({ProcName, A}, {acceptor, accept, Value})
+    end.
+
+proposal_bcast(ProcName, Value, Seq) ->
+    fun(A) ->
+	    gen_fsm:send_event({ProcName, A}, {prepare, acceptor, Value, Seq})
+    end.
+
 update_promises_state(Seq, Value, Data) ->
     P = Data#prop_state.promises_received + 1,
     Pv = [{Seq, Value} | Data#prop_state.promised_values],
@@ -109,7 +120,6 @@ update_promises_state(Seq, Value, Data) ->
 
 compute_decide_value(PromisedValues) ->
     SortedPv = lists:keysort(1, PromisedValues),
-    io:format("Sorted:~p~n", [SortedPv]),
     {Seq, Value} = lists:last(SortedPv),
     case Value == '' of
 	true ->
