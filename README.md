@@ -12,5 +12,8 @@ Build
 
 TODO
 ----
-* Store only node identifiers and not the process name
+* Decouple proposer-acceptor-learner
+* Add definitions to separate file
+* Link processes under supervision tree
+* Put leader and peers in enviroment variables
 * Continue with the rest of Paxos :P

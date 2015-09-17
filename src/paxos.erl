@@ -86,7 +86,7 @@ prepare({prepare, acceptor, Value, Seq}, Data) when Seq > Data#state.last_promis
     %% Send promise to leader
     %% I should take care of the case when the acceptor has not accepted a value yet
     %% but I should do it another day...
-    gen_fsm:send_event({?NAME, Data#state.leader}, {accept_request, proposer,
+    gen_fsm:send_event({?_PROP_NAME, Data#state.leader}, {proposer, accept_request,
 						    Data#state.last_promise,
 						    Data#state.accepted_value}),
     {next_state, prepare, Data#state{proposed_value = Value, last_promise = Seq}};
@@ -160,15 +160,3 @@ handle_info(_Info, State, Data) ->
 %% Private Functions
 print_state(State, Data) ->
     io:format("Data ~p~n", [Data]).
-
-compute_decide_value(PromisedValues) ->
-    SortedPv = lists:keysort(1, PromisedValues),
-    io:format("Sorted:~p~n", [SortedPv]),
-    {Seq, Value} = lists:last(SortedPv),
-    case Value == 'None' of
-	true ->
-	    {ok, decide};
-	false ->
-	    {ok, Seq, Value}
-    end.
-
