@@ -1,2 +1,2 @@
-{leader, 'foo@earendil'}.
-{peers, ['foo@earendil', 'bar@earendil', 'ble@earendil']}.
+{leader, 'ena@earendil'}.
+{peers, ['ena@earendil', 'duo@earendil']}.

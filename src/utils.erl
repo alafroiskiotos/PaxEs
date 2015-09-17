@@ -21,6 +21,9 @@ bcast_proposal(Acceptors, ProcName, Value, Seq) ->
     lists:map(fun(A) -> gen_fsm:send_event({ProcName, A}, {prepare, acceptor, Value, Seq}) end, Acceptors).
 
 read_config() ->
+    {ok, Dir} = file:get_cwd(),
+    io:format("pwd ~p~n", [Dir]),
+    io:format("config: ~p~n", [?CONFIG]),
     {ok, Terms} = file:consult(?CONFIG),
     Leader = lists:keyfind(leader, 1, Terms),
     Peers = lists:keyfind(peers, 1, Terms),

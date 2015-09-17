@@ -8,7 +8,7 @@
 -export([start/0, start/1, start_link/0, start_link/1]).
 
 %% Client API
--export([prop/1]).
+-export([prop/1, stop/0]).
 
 %% FSM API
 -export([init/1, handle_event/3, handle_sync_event/4, code_change/4, terminate/3, handle_info/3]).
@@ -30,6 +30,9 @@ start_link() ->
 %% Client API
 prop(Value) ->
     gen_fsm:send_event(?PROP_NAME, {proposer, prepare, Value}).
+
+stop() ->
+    gen_fsm:send_all_state_event(?PROP_NAME, {mngm, stop}).
 
 %% FSM API
 init(Args) ->
@@ -54,6 +57,8 @@ init(Args) ->
     end.
 
 %% Not implemented yet
+handle_event({mngm, stop}, _State, Data) ->
+    {stop, normal, Data};
 handle_event(_Msg, State, Data) ->
     {next_state, State, Data}.
 
