@@ -12,9 +12,10 @@ Build
 
 TODO
 ----
-* Decouple proposer-acceptor-learner
-* Separate different roles state
-* Add definitions to separate file
-* Link processes under supervision tree
-* Put leader and peers in enviroment variables
+* Implement Learners
+* Reset Proposer and go to next round
+* Put leader and peers in enviroment variables (?)
+* Add some documentation
 * Continue with the rest of Paxos :P
+* Implement failure detector (mmhh)
+* Implement leader election (mmhh)
