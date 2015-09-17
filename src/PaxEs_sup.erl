@@ -7,8 +7,10 @@
 
 -behaviour(supervisor).
 
+-include_lib("PaxEs/include/paxos_def.hrl").
+
 %% API
--export([start_link/1]).
+-export([start_link/0]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -19,23 +21,25 @@
 %% API functions
 %%====================================================================
 
-start_link(Args) ->
-    supervisor:start_link({local, ?SERVER}, ?MODULE, [Args]).
+start_link() ->
+    supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
 %%====================================================================
 %% Supervisor callbacks
 %%====================================================================
 
 %% Child :: {Id,StartFunc,Restart,Shutdown,Type,Modules}
-init(Args) ->
+init(_Args) ->
     Acceptor = {acceptor, {acceptor, start_link, []},
 	       temporary,
 	       2000,
 	       worker,
 	       [acceptor, utils]},
-    case lists:member(true, Args) of
+    {{leader, Leader}, {_, _}} = utils:read_config(),
+    io:format(Leader),
+    case Leader == node() of
 	true ->
-	    Proposer = {proposer, {proposer, start_link, Args},
+	    Proposer = {proposer, {proposer, start_link, []},
 			temporary,
 			2000,
 			worker,

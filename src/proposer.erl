@@ -2,7 +2,7 @@
 
 -behaviour(gen_fsm).
 
--include("include/paxos_def.hrl").
+-include_lib("PaxEs/include/paxos_def.hrl").
 
 %% Public API
 -export([start/0, start/1, start_link/0, start_link/1]).
