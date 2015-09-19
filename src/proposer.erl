@@ -150,14 +150,14 @@ accept_request({proposer, accept_request, Seq, Value}, Data) ->
 
 accept_bcast(ProcName, Value, Seq) ->
     fun(A) ->
-	    gen_fsm:send_event({ProcName, A}, {acceptor, accept, Value, Seq})
+	    gen_server:cast({ProcName, A}, {acceptor, accept, node(), Value, Seq})
     end.
 
 -spec proposal_bcast(atom(), string(), integer()) -> function().
 
 proposal_bcast(ProcName, Value, Seq) ->
     fun(A) ->
-	    gen_fsm:send_event({ProcName, A}, {prepare, acceptor, Value, Seq})
+	    gen_server:cast({ProcName, A}, {acceptor, prepare, node(), Value, Seq})
     end.
 
 -spec update_promises_state(integer(), string(), prop_state()) -> prop_state().

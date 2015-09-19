@@ -12,9 +12,9 @@ Build
 
 TODO
 ----
-* Decouple proposer-acceptor-learner
-* Separate different roles state
-* Add definitions to separate file
-* Link processes under supervision tree
-* Put leader and peers in enviroment variables
+* Implement learners
+* Implement client API (propose/1, get/0 or something like this)
+* When proposing add a timer, if time expires, make new proposal
+  with higher sequence number
+* Put leader and peers in enviroment variables (?)
 * Continue with the rest of Paxos :P
