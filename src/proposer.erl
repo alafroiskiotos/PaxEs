@@ -15,7 +15,7 @@
 
 -record(prop_state, {seq_num :: integer(),
 		    proposed_value :: string(),
-		    peers :: [node()],
+		    acceptors :: [node()],
 		    promises_received :: integer(),
 		    promised_values :: [{integer(), string()}]}).
 
@@ -46,11 +46,11 @@ stop() ->
 
 init(_Args) ->
     %% I am the leader, I should do something
-    {{leader, _}, {peers, Peers}} = utils:read_config(),
+    {{leader, _}, {acceptors, Acceptors}, {learners, _}} = utils:read_config(),
     InitState = #prop_state{seq_num = utils:pid_to_num(pid_to_list(self())),
 		       proposed_value = "",
-		       peers = Peers,
-		       promises_received = 0,
+		       acceptors = Acceptors,
+		       promises_received = 1,
 		       promised_values = []},
     {ok, InitState}.
 
@@ -77,7 +77,7 @@ handle_cast({proposer, prepare, Value}, State) ->
 	      [Value, State#prop_state.seq_num]),
     %% Broadcast to acceptors
     utils:bcast(proposal_bcast(?ACC_NAME, Value, State#prop_state.seq_num),
-		State#prop_state.peers),
+		State#prop_state.acceptors),
     NextSeq = State#prop_state.seq_num + 1,
     {noreply, State#prop_state{seq_num = NextSeq, proposed_value = Value}};
 
@@ -87,9 +87,11 @@ handle_cast({proposer, accept_request, nack, Seq}, State)
     io:format("PROPOSER received NACK, trying again...~n"),
     utils:bcast(proposal_bcast(?ACC_NAME, State#prop_state.proposed_value,
 			      State#prop_state.seq_num),
-		State#prop_state.peers),
+		State#prop_state.acceptors),
     NextSeq = State#prop_state.seq_num + 1,
-    {noreply, State#prop_state{seq_num = NextSeq}};
+    {noreply, State#prop_state{seq_num = NextSeq,
+			       promised_values = [],
+			      promises_received = 0}};
 
 %% Ignore old NACKs
 handle_cast({proposer, accept_request, nack, _Seq}, State) ->
@@ -97,7 +99,7 @@ handle_cast({proposer, accept_request, nack, _Seq}, State) ->
 
 %% Proposer has not received quorum promises yet
 handle_cast({proposer, accept_request, Seq, Value}, State)
-  when State#prop_state.promises_received < length(State#prop_state.peers) / 2 ->
+  when State#prop_state.promises_received < length(State#prop_state.acceptors) / 2 ->
     io:format("PROPOSER has not received quorum yet~n"),
     {noreply, update_promises_state(Seq, Value, State)};
 
@@ -111,7 +113,7 @@ handle_cast({proposer, accept_request, Seq, Value}, State) ->
 	    io:format("PROPOSER hooray I can decide whatever I want~n"),
 	    utils:bcast(accept_bcast(?ACC_NAME, State#prop_state.proposed_value,
 				    State#prop_state.seq_num),
-			State#prop_state.peers),
+			State#prop_state.acceptors),
 	    {noreply, State#prop_state{proposed_value = "",
 				      promises_received = 0,
 				       promised_values = []}};
@@ -119,7 +121,7 @@ handle_cast({proposer, accept_request, Seq, Value}, State) ->
 	{ok, Seq, Value} ->
 	    io:format("PROPOSER hhhmm I should decide value ~p~n", [Value]),
 	    utils:bcast(accept_bcast(?ACC_NAME, Value, State#prop_state.seq_num),
-			State#prop_state.peers),
+			State#prop_state.acceptors),
 	    {noreply, State#prop_state{proposed_value = "",
 				      promises_received = 0,
 				      promised_values = []}}
@@ -152,18 +154,23 @@ proposal_bcast(ProcName, Value, Seq) ->
 
 update_promises_state(Seq, Value, State) ->
     P = State#prop_state.promises_received + 1,
-    Pv = [{Seq, Value} | State#prop_state.promised_values],
-    State#prop_state{promises_received = P, promised_values = Pv}.
+    case Value == "" of
+	true ->
+	    State#prop_state{promises_received = P};
+	false ->
+	    Pv = [{Seq, Value} | State#prop_state.promised_values],
+	    State#prop_state{promises_received = P, promised_values = Pv}
+    end.
 
 -spec compute_decide_value([{integer(), string()}]) ->
 				  {ok, decide} | {ok, integer(), string()}.
 
 compute_decide_value(PromisedValues) ->
-    SortedPv = lists:keysort(1, PromisedValues),
-    {Seq, Value} = lists:last(SortedPv),
-    case Value == "" of
+    case length(PromisedValues) == 0 of
 	true ->
 	    {ok, decide};
 	false ->
+	    SortedPv = lists:keysort(1, PromisedValues),
+	    {Seq, Value} = lists:last(SortedPv),
 	    {ok, Seq, Value}
     end.

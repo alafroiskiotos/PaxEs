@@ -14,7 +14,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -record(acc_state, {accepted_value :: string(),
-		   peers :: [node()],
+		   learners :: [node()],
 		   last_promise :: integer(),
 		   leader :: node()}).
 
@@ -33,9 +33,9 @@ print_state() ->
 
 %% callback functions
 init(_Args) ->
-    {{leader, Leader}, {peers, Peers}} = utils:read_config(),
+    {{leader, Leader}, {acceptors, _}, {learners, Learners}} = utils:read_config(),
     InitState = #acc_state{accepted_value = "",
-			  peers = Peers,
+			  learners = Learners,
 			  last_promise = -1,
 			   leader = Leader},
     {ok, InitState}.
@@ -81,14 +81,14 @@ handle_cast({acceptor, accept, _From, Value, Seq}, State)
     io:format("Accepted value ~p~n", [Value]),
     %% I should send a message to learners about the outcome
     %% and acknowledge to Proposer
-    utils:bcast(learner_bcast(?LRN_NAME, Value), State#acc_state.peers),
+    utils:bcast(learner_bcast(?LRN_NAME, Value), State#acc_state.learners),
     {noreply, State#acc_state{accepted_value = Value}};
 
 handle_cast({mngm, stop}, State) ->
     {stop, normal, State};
 handle_cast({mngm, reset}, State) ->
     NewState = #acc_state{accepted_value = "",
-			  peers = State#acc_state.peers,
+			  learners = State#acc_state.learners,
 			  last_promise = -1,
 			  leader = State#acc_state.leader},
     {noreply, NewState};

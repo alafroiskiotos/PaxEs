@@ -12,11 +12,13 @@ Build
 
 TODO
 ----
-* Implement learners
-* Distinguish between proposer/acceptors/learners in configuration file
-* Implement client API (propose/1, get/0 or something like this)
-* Reset Proposer and go to next round
 * Persist acceptor critical state to file
+* Write test case with multiple proposers
 * Add some documentation
 * Implement failure detector (mmhh)
 * Implement leader election (mmhh)
+
+Notes
+-----
+* For the moment 'leader' in acceptor state should be ignored.
+* For the moment I assume that each node act as proposer && learner

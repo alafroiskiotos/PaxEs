@@ -1,2 +1,3 @@
 {leader, 'ena@earendil'}.
-{peers, ['ena@earendil', 'duo@earendil']}.
+{acceptors, ['ena@earendil', 'duo@earendil', 'tria@earendil', 'tessera@earendil']}.
+{learners, ['ena@earendil', 'duo@earendil', 'tria@earendil', 'tessera@earendil']}.

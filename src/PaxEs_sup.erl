@@ -31,27 +31,21 @@ start_link() ->
 %% Child :: {Id,StartFunc,Restart,Shutdown,Type,Modules}
 init(_Args) ->
     Acceptor = {acceptor, {acceptor, start_link, []},
-	       temporary,
+	       transient,
 	       2000,
 	       worker,
 	       [acceptor, utils]},
     Learner = {learner, {learner, start_link, []},
-	      temporary,
+	      transient,
 	      2000,
 	      worker,
 	      [learner]},
-    {{leader, Leader}, {_, _}} = utils:read_config(),
-    case Leader == node() of
-	true ->
-	    Proposer = {proposer, {proposer, start_link, []},
-			temporary,
-			2000,
-			worker,
-			[proposer, utils]},
-	    {ok, { {one_for_one, 5, 1}, [Proposer, Acceptor, Learner]} };
-	false ->
-	    {ok, { {one_for_one, 5, 1}, [Acceptor, Learner]} }
-    end.
+    Proposer = {proposer, {proposer, start_link, []},
+		transient,
+		2000,
+		worker,
+		[proposer, utils]},
+    {ok, { {one_for_one, 5, 1}, [Proposer, Acceptor, Learner]} }.
 %%====================================================================
 %% Internal functions
 %%====================================================================
