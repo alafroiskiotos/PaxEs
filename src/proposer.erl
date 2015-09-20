@@ -81,6 +81,20 @@ handle_cast({proposer, prepare, Value}, State) ->
     NextSeq = State#prop_state.seq_num + 1,
     {noreply, State#prop_state{seq_num = NextSeq, proposed_value = Value}};
 
+%% Proposer received NACK, it should try again with higher sequence number
+handle_cast({proposer, accept_request, nack, Seq}, State)
+  when Seq == State#prop_state.seq_num - 1 ->
+    io:format("PROPOSER received NACK, trying again...~n"),
+    utils:bcast(proposal_bcast(?ACC_NAME, State#prop_state.proposed_value,
+			      State#prop_state.seq_num),
+		State#prop_state.peers),
+    NextSeq = State#prop_state.seq_num + 1,
+    {noreply, State#prop_state{seq_num = NextSeq}};
+
+%% Ignore old NACKs
+handle_cast({proposer, accept_request, nack, _Seq}, State) ->
+    {noreply, State};
+
 %% Proposer has not received quorum promises yet
 handle_cast({proposer, accept_request, Seq, Value}, State)
   when State#prop_state.promises_received < length(State#prop_state.peers) / 2 ->

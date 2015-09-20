@@ -58,8 +58,7 @@ handle_call(_Request, _From, State) ->
 
 %% Value is here just for debugging
 handle_cast({acceptor, prepare, From, Value, Seq}, State)
-  when Seq > State#acc_state.last_promise 
-       andalso From =:= State#acc_state.leader ->
+  when Seq > State#acc_state.last_promise ->
     io:format("ACCEPTOR received proposal with higher sequence number, promise!~n"),
     io:format("Value: ~p, Seq: ~p, last_promise: ~p~n",
 	      [Value, Seq, State#acc_state.last_promise]),
@@ -69,18 +68,16 @@ handle_cast({acceptor, prepare, From, Value, Seq}, State)
 					State#acc_state.accepted_value}),
     {noreply, State#acc_state{last_promise = Seq}};
 
-%% Ideally I should send NACK here
-handle_cast({acceptor, prepare, From, Value, Seq}, State)
-  when From =:= State#acc_state.leader ->
+%% I should send NACK here
+handle_cast({acceptor, prepare, From, Value, Seq}, State) ->
     io:format("ACCEPTOR received proposal with lesser seq number, ignore!~n"),
     io:format("Value: ~p, Seq: ~p, last_promise: ~p~n",
 	      [Value, Seq, State#acc_state.last_promise]),
-
+    gen_server:cast({?PROP_NAME, From}, {proposer, accept_request, nack, Seq}),
     {noreply, State};
 
 handle_cast({acceptor, accept, From, Value, Seq}, State)
-  when Seq >= State#acc_state.last_promise
-       andalso From =:= State#acc_state.leader ->
+  when Seq >= State#acc_state.last_promise ->
     io:format("Accepted value ~p~n", [Value]),
     %% I should send a message to learners about the outcome
     %% and acknowledge to Proposer
