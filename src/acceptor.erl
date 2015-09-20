@@ -76,11 +76,12 @@ handle_cast({acceptor, prepare, From, Value, Seq}, State) ->
     gen_server:cast({?PROP_NAME, From}, {proposer, accept_request, nack, Seq}),
     {noreply, State};
 
-handle_cast({acceptor, accept, From, Value, Seq}, State)
+handle_cast({acceptor, accept, _From, Value, Seq}, State)
   when Seq >= State#acc_state.last_promise ->
     io:format("Accepted value ~p~n", [Value]),
     %% I should send a message to learners about the outcome
     %% and acknowledge to Proposer
+    utils:bcast(learner_bcast(?LRN_NAME, Value), State#acc_state.peers),
     {noreply, State#acc_state{accepted_value = Value}};
 
 handle_cast({mngm, stop}, State) ->
@@ -100,3 +101,8 @@ handle_cast(_Request, State) ->
     io:format("Not implemented yet~n"),
     {noreply, State}.
 
+%% Private functions
+learner_bcast(ProcName, Value) ->
+    fun(A) ->
+	    gen_server:cast({ProcName, A}, {learner, learn, Value})
+    end.

@@ -35,6 +35,11 @@ init(_Args) ->
 	       2000,
 	       worker,
 	       [acceptor, utils]},
+    Learner = {learner, {learner, start_link, []},
+	      temporary,
+	      2000,
+	      worker,
+	      [learner]},
     {{leader, Leader}, {_, _}} = utils:read_config(),
     case Leader == node() of
 	true ->
@@ -43,9 +48,9 @@ init(_Args) ->
 			2000,
 			worker,
 			[proposer, utils]},
-	    {ok, { {one_for_one, 5, 1}, [Proposer, Acceptor]} };
+	    {ok, { {one_for_one, 5, 1}, [Proposer, Acceptor, Learner]} };
 	false ->
-	    {ok, { {one_for_one, 5, 1}, [Acceptor]} }
+	    {ok, { {one_for_one, 5, 1}, [Acceptor, Learner]} }
     end.
 %%====================================================================
 %% Internal functions
