@@ -1,6 +1,6 @@
 -module(proposer).
 
--behaviour(gen_fsm).
+-behaviour(gen_server).
 
 -include_lib("PaxEs/include/paxos_def.hrl").
 
@@ -11,10 +11,7 @@
 -export([prop/1, stop/0]).
 
 %% FSM API
--export([init/1, handle_event/3, handle_sync_event/4, code_change/4, terminate/3, handle_info/3]).
-
-%% FSM States
--export([propose/2, accept_request/2]).
+-export([init/1, handle_call/3, handle_cast/2, code_change/3, terminate/2, handle_info/2]).
 
 -record(prop_state, {seq_num :: integer(),
 		    proposed_value :: string(),
@@ -25,31 +22,27 @@
 -type prop_state() :: #prop_state{}.
 
 %% Public API
--spec start() -> {ok, pid()} | ignore | {error, term()}.
-
 start() ->
-    gen_fsm:start({local, ?PROP_NAME}, ?MODULE, [], []).
-
--spec start_link() -> {ok, pid()} | ignore | {error, term()}.
+    gen_server:start({local, ?PROP_NAME}, ?MODULE, [], []).
 
 start_link() ->
-    gen_fsm:start_link({local, ?PROP_NAME}, ?MODULE, [], []).
+    gen_server:start_link({local, ?PROP_NAME}, ?MODULE, [], []).
 
 %% Client API
 
 -spec prop(string()) -> ok.
 
 prop(Value) ->
-    gen_fsm:send_event(?PROP_NAME, {proposer, prepare, Value}).
+    gen_server:cast(?PROP_NAME, {proposer, prepare, Value}).
 
 -spec stop() -> ok.
 
 stop() ->
-    gen_fsm:send_all_state_event(?PROP_NAME, {mngm, stop}).
+    gen_server:cast(?PROP_NAME, {mngm, stop}).
 
-%% FSM API
+%% callback functions
 
--spec init(term()) -> {ok, propose, prop_state()}.
+-spec init(term()) -> {ok, prop_state()}.
 
 init(_Args) ->
     %% I am the leader, I should do something
@@ -59,90 +52,71 @@ init(_Args) ->
 		       peers = Peers,
 		       promises_received = 0,
 		       promised_values = []},
-    {ok, propose, InitState}.
+    {ok, InitState}.
+
+terminate(normal, _State) ->
+    ok;
+terminate(Reason, _State) ->
+    io:format("Proposer terminated for ~p~n", [Reason]).
+
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
+
+handle_info(Info, State) ->
+    io:format("Proposer -> Hhhmm, unknown request ~p~n", [Info]),
+    {noreply, State}.
 
 %% Not implemented yet
+handle_call(_Request, _From, State) ->
+    io:format("No synchronous calls implemented yet~n"),
+    {noreply, State}.
 
--spec handle_event({atom(), atom()}, atom(), prop_state()) ->
-			  {stop, normal, prop_state()}
-			  | {next_state, atom(), prop_state()}.
-
-handle_event({mngm, stop}, _State, Data) ->
-    {stop, normal, Data};
-handle_event(_Msg, State, Data) ->
-    {next_state, State, Data}.
-
--type reply() :: prop_state().
-
--spec handle_sync_event(term(), {pid(), atom()}, atom(), prop_state()) ->
-			       {reply, reply(), atom(), prop_state()}.
-
-handle_sync_event(_Msg, _From, State, Data) ->
-    {reply, Data, State, Data}.
-
--spec code_change(term() | {down, term()}, atom(), prop_state(), term()) ->
-			 {ok, atom(), prop_state()}.
-
-code_change(_OldVsn, State, Data, _Extra) ->
-    {ok, State, Data}.
-
--spec terminate(atom(), atom(), prop_state()) ->
-		       ok | atom() | term().
-
-terminate(normal, _State, _Data) ->
-    io:format("Finished...~n"),
-    ok;
-terminate(Reason, _State, _Data) ->
-    io:format("Ubnormal termination -> ~p~n", [Reason]).
-
--spec handle_info(term(), atom(), prop_state()) ->
-			 {next_state, atom(), prop_state()}.
-
-handle_info(Info, State, Data) ->
-    io:format("What do ya mean by ~p ?!?~n", [Info]),
-    {next_state, State, Data}.
-
-
-%% States
-
--spec propose({atom(), atom(), string()}, prop_state()) ->
-		     {next_state, atom(), prop_state()}.
-
-propose({proposer, prepare, Value}, Data) ->
-    NextSeq = Data#prop_state.seq_num + 1,
-    io:format("PROPOSER Proposing value ~p with seq num ~p~n", [Value, NextSeq]),
+%% Make a proposal to Acceptors
+handle_cast({proposer, prepare, Value}, State) ->
+    io:format("PROPOSER Proposing value ~p with seq num ~p~n",
+	      [Value, State#prop_state.seq_num]),
     %% Broadcast to acceptors
-    utils:bcast(proposal_bcast(?ACC_NAME, Value, NextSeq), Data#prop_state.peers),
-    {next_state, accept_request, Data#prop_state{seq_num = NextSeq, proposed_value = Value}}.
+    utils:bcast(proposal_bcast(?ACC_NAME, Value, State#prop_state.seq_num),
+		State#prop_state.peers),
+    NextSeq = State#prop_state.seq_num + 1,
+    {noreply, State#prop_state{seq_num = NextSeq, proposed_value = Value}};
 
--spec accept_request({atom(), atom(), integer(), string()}, prop_state()) ->
-			    {next_state, atom(), prop_state()}.
+%% Proposer has not received quorum promises yet
+handle_cast({proposer, accept_request, Seq, Value}, State)
+  when State#prop_state.promises_received < length(State#prop_state.peers) / 2 ->
+    io:format("PROPOSER has not received quorum yet~n"),
+    {noreply, update_promises_state(Seq, Value, State)};
 
-accept_request({proposer, accept_request, Seq, Value}, Data)
-  when Data#prop_state.promises_received < length(Data#prop_state.peers) / 2 ->
-    io:format("PROPOSER have not received quorum yet!~n"),
-    {next_state, accept_request, update_promises_state(Seq, Value, Data)};
-accept_request({proposer, accept_request, Seq, Value}, Data) ->
-    io:format("PROPOSER received promises from quorum, hooray!~n"),
-    NewData = update_promises_state(Seq, Value, Data),
-    %% Inform the acceptors
-    case compute_decide_value(NewData#prop_state.promised_values) of
+%% Proposer received promises from quorum
+handle_cast({proposer, accept_request, Seq, Value}, State) ->
+    io:format("PROPOSER has received promises from quorum!~n"),
+    NewState = update_promises_state(Seq, Value, State),
+    case compute_decide_value(NewState#prop_state.promised_values) of
+	%% Decide new value
 	{ok, decide} ->
-	    io:format("PROPOSER YEAY I can decide whatever I want~n"),
-	    utils:bcast(accept_bcast(?ACC_NAME, Data#prop_state.proposed_value,
-				    Data#prop_state.seq_num), 
-			Data#prop_state.peers),
-	    {next_state, propose, Data#prop_state{proposed_value = "",
-						  promises_received = 0,
-						  promised_values = []}};
+	    io:format("PROPOSER hooray I can decide whatever I want~n"),
+	    utils:bcast(accept_bcast(?ACC_NAME, State#prop_state.proposed_value,
+				    State#prop_state.seq_num),
+			State#prop_state.peers),
+	    {noreply, State#prop_state{proposed_value = "",
+				      promises_received = 0,
+				       promised_values = []}};
+	%% Value has already been decided
 	{ok, Seq, Value} ->
-	    io:format("PROPOSER hhmm I should decide val ~p with seq ~p~n", [Value, Seq]),
-	    utils:bcast(accept_bcast(?ACC_NAME, Value, Data#prop_state.seq_num),
-			Data#prop_state.peers),
-	    {next_state, propose, Data#prop_state{proposed_value = "",
-						  promises_received = 0,
-						  promised_values = []}}
-    end.
+	    io:format("PROPOSER hhhmm I should decide value ~p~n", [Value]),
+	    utils:bcast(accept_bcast(?ACC_NAME, Value, State#prop_state.seq_num),
+			State#prop_state.peers),
+	    {noreply, State#prop_state{proposed_value = "",
+				      promises_received = 0,
+				      promised_values = []}}
+    end;
+
+%% Various management calls
+handle_cast({mngm, stop}, State) ->
+    {stop, normal, State};
+handle_cast({mngm, print_state}, State) ->
+    io:format("PROPOSER state is ~p~n", [State]),
+    {noreply, State}.
 
 %% Private functions
 
@@ -162,10 +136,10 @@ proposal_bcast(ProcName, Value, Seq) ->
 
 -spec update_promises_state(integer(), string(), prop_state()) -> prop_state().
 
-update_promises_state(Seq, Value, Data) ->
-    P = Data#prop_state.promises_received + 1,
-    Pv = [{Seq, Value} | Data#prop_state.promised_values],
-    Data#prop_state{promises_received = P, promised_values = Pv}.
+update_promises_state(Seq, Value, State) ->
+    P = State#prop_state.promises_received + 1,
+    Pv = [{Seq, Value} | State#prop_state.promised_values],
+    State#prop_state{promises_received = P, promised_values = Pv}.
 
 -spec compute_decide_value([{integer(), string()}]) ->
 				  {ok, decide} | {ok, integer(), string()}.

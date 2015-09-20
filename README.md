@@ -13,12 +13,12 @@ Build
 TODO
 ----
 * Implement learners
+* Distinguish between proposer/acceptors/learners in configuration file
 * Implement client API (propose/1, get/0 or something like this)
 * When proposing add a timer, if time expires, make new proposal
   with higher sequence number
 * Reset Proposer and go to next round
 * Add some documentation
-* Put leader and peers in enviroment variables (?)
 * Continue with the rest of Paxos :P
 * Implement failure detector (mmhh)
 * Implement leader election (mmhh)

@@ -49,7 +49,7 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 handle_info(Info, State) ->
-    io:format("Hhhmm, unknown request ~p~n", [Info]),
+    io:format("Acceptor -> Hhhmm, unknown request ~p~n", [Info]),
     {noreply, State}.
 
 handle_call(_Request, _From, State) ->
@@ -64,16 +64,18 @@ handle_cast({acceptor, prepare, From, Value, Seq}, State)
     io:format("Value: ~p, Seq: ~p, last_promise: ~p~n",
 	      [Value, Seq, State#acc_state.last_promise]),
 
-    gen_fsm:send_event({?PROP_NAME, From}, {proposer, accept_request,
-					   State#acc_state.last_promise,
-					   State#acc_state.accepted_value}),
+    gen_server:cast({?PROP_NAME, From}, {proposer, accept_request,
+					State#acc_state.last_promise,
+					State#acc_state.accepted_value}),
     {noreply, State#acc_state{last_promise = Seq}};
 
 %% Ideally I should send NACK here
 handle_cast({acceptor, prepare, From, Value, Seq}, State)
   when From =:= State#acc_state.leader ->
     io:format("ACCEPTOR received proposal with lesser seq number, ignore!~n"),
-    io:format("Value: ~p, Seq: ~p, last_promise: ~p~n", [Value, Seq, State#acc_state.last_promise]),
+    io:format("Value: ~p, Seq: ~p, last_promise: ~p~n",
+	      [Value, Seq, State#acc_state.last_promise]),
+
     {noreply, State};
 
 handle_cast({acceptor, accept, From, Value, Seq}, State)
