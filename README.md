@@ -13,7 +13,6 @@ Build
 TODO
 ----
 * Persist acceptor critical state to file
-* Write test case with multiple proposers
 * Add some documentation
 * Implement failure detector (mmhh)
 * Implement leader election (mmhh)

@@ -7,5 +7,8 @@
 %% Learner process name
 -define(LRN_NAME, learner).
 
+%% Remote client api name
+-define(REM_NAME, remoteapi).
+
 %% Configuration file -- TO BE REMOVED
 -define(CONFIG, 'src/config').
