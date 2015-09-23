@@ -21,17 +21,28 @@
 -type acc_state() :: #acc_state{}.
 
 %% Public API
+
+-spec start() -> {ok, pid()}.
+
 start() ->
     gen_server:start({local, ?ACC_NAME}, ?MODULE, [], []).
+
+-spec start_link() -> {ok, pid()}.
 
 start_link() ->
     gen_server:start_link({local, ?ACC_NAME}, ?MODULE, [], []).
 
 %% Client API
+
+-spec print_state() -> ok.
+
 print_state() ->
     gen_server:cast(?ACC_NAME, {mngm, print_state}).
 
 %% callback functions
+
+-spec init(term()) -> {ok, acc_state()}.
+
 init(_Args) ->
     {{leader, Leader}, {acceptors, _}, {learners, Learners}} = utils:read_config(),
     InitState = #acc_state{accepted_value = "",
@@ -40,21 +51,35 @@ init(_Args) ->
 			   leader = Leader},
     {ok, InitState}.
 
+-spec terminate(atom(), acc_state()) -> ok.
+
 terminate(normal, _State) ->
     ok;
 terminate(Reason, _State) ->
     io:format("Acceptor ubnormal termination ~p~n", [Reason]).
 
+-spec code_change(term() | {down, term()}, acc_state(), term()) -> {ok, acc_state()}.
+
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
+-spec handle_info(timeout | term(), acc_state()) -> {noreply, acc_state()}.
 
 handle_info(Info, State) ->
     io:format("Acceptor -> Hhhmm, unknown request ~p~n", [Info]),
     {noreply, State}.
 
+-spec handle_call(term(), {pid(), term()}, acc_state()) -> {noreply, acc_state()}.
+
 handle_call(_Request, _From, State) ->
     io:format("No synchronous calls implemented yet~n"),
     {noreply, State}.
+
+-type async_req() :: {acceptor, prepare, term(), string(), integer()} |
+		     {acceptor, accept, term(), string(), integer()} |
+		     {mngm, atom()}.
+
+-spec handle_cast(async_req(), acc_state()) -> {noreply, acc_state()}.
 
 %% Value is here just for debugging
 handle_cast({acceptor, prepare, From, Value, Seq}, State)
@@ -102,6 +127,9 @@ handle_cast(_Request, State) ->
     {noreply, State}.
 
 %% Private functions
+
+-spec learner_bcast(atom(), string()) -> function().
+
 learner_bcast(ProcName, Value) ->
     fun(A) ->
 	    gen_server:cast({ProcName, A}, {learner, learn, Value})

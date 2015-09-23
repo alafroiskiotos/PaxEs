@@ -22,8 +22,13 @@
 -type prop_state() :: #prop_state{}.
 
 %% Public API
+
+-spec start() -> {ok, pid()}.
+
 start() ->
     gen_server:start({local, ?PROP_NAME}, ?MODULE, [], []).
+
+-spec start_link() -> {ok, pid()}.
 
 start_link() ->
     gen_server:start_link({local, ?PROP_NAME}, ?MODULE, [], []).
@@ -54,22 +59,40 @@ init(_Args) ->
 		       promised_values = []},
     {ok, InitState}.
 
+-spec terminate(atom(), prop_state()) -> ok.
+
 terminate(normal, _State) ->
     ok;
 terminate(Reason, _State) ->
     io:format("Proposer terminated for ~p~n", [Reason]).
 
+-spec code_change(term() | {down, term()}, prop_state(), term()) -> {ok, prop_state()}.
+
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
+-spec handle_info(timeout | term(), prop_state()) -> {noreply, prop_state()}.
 
 handle_info(Info, State) ->
     io:format("Proposer -> Hhhmm, unknown request ~p~n", [Info]),
     {noreply, State}.
 
 %% Not implemented yet
+
+-spec handle_call(term(), {pid(), term()}, prop_state()) -> {noreply, prop_state()}.
+
 handle_call(_Request, _From, State) ->
     io:format("No synchronous calls implemented yet~n"),
     {noreply, State}.
+
+-type async_req() :: {propser, prepare, string()} |
+		     {proposer, accept_request, nack, integer()} |
+		     {proposer, accept_request, integer(), string()} |
+		     {mngm, stop} |
+		     {mngm, print_state}.
+
+-spec handle_cast(async_req(), prop_state()) -> {noreply, prop_state()} |
+						{stop, normal, prop_state()}.
 
 %% Make a proposal to Acceptors
 handle_cast({proposer, prepare, Value}, State) ->

@@ -2,7 +2,7 @@
 
 -include_lib("PaxEs/include/paxos_def.hrl").
 
--export([pid_to_num/1, read_config/0, bcast/2, bcast_sync/2]).
+-export([pid_to_num/1, read_config/0, bcast/2]).
 
 -spec pred(char(), integer()) -> integer().
 
@@ -22,9 +22,6 @@ pid_to_num([_F | Pid]) ->
     lists:foldl(fun(X, Acc) -> pred(X, Acc) end, 0, Pid).
 
 -spec bcast(function(), [node()]) -> ok.
-
-bcast_sync(Fun, Destination) ->
-    lists:foldl(Fun, [], Destination).
 
 bcast(Fun, Destination) ->
     lists:foreach(Fun, Destination).
