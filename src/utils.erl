@@ -33,4 +33,5 @@ read_config() ->
     Leader = lists:keyfind(leader, 1, Terms),
     Acceptors = lists:keyfind(acceptors, 1, Terms),
     Learners = lists:keyfind(learners, 1, Terms),
-    {Leader, Acceptors, Learners}.
+    Proposers = lists:keyfind(proposers, 1, Terms),
+    {Leader, Acceptors, Learners, Proposers}.

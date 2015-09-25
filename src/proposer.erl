@@ -51,7 +51,7 @@ stop() ->
 
 init(_Args) ->
     %% I am the leader, I should do something
-    {{leader, _}, {acceptors, Acceptors}, {learners, _}} = utils:read_config(),
+    {{leader, _}, {acceptors, Acceptors}, {learners, _}, _} = utils:read_config(),
     InitState = #prop_state{seq_num = utils:pid_to_num(pid_to_list(self())),
 		       proposed_value = "",
 		       acceptors = Acceptors,

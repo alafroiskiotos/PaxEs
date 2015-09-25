@@ -44,7 +44,7 @@ print_state() ->
 -spec init(term()) -> {ok, acc_state()}.
 
 init(_Args) ->
-    {{leader, Leader}, {acceptors, _}, {learners, Learners}} = utils:read_config(),
+    {{leader, Leader}, {acceptors, _}, {learners, Learners}, _} = utils:read_config(),
     InitState = #acc_state{accepted_value = "",
 			  learners = Learners,
 			  last_promise = -1,

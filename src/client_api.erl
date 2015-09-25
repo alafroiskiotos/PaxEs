@@ -2,13 +2,12 @@
 
 -include_lib("PaxEs/include/paxos_def.hrl").
 
--export([write/1, read/0, start_remote_api/0, stop_remote_api/0,
-	 remote_api/0, manager/0]).
+-export([write/1, read/0, stop_remote_api/0, init/0, manager/1, remote_api/1]).
 
--spec start_remote_api() -> true.
+-record(cl_state, {proposer :: atom(),
+		  learner :: atom()}).
 
-start_remote_api() ->
-    register(apimanager, spawn(client_api, manager, [])).
+-type cl_state() :: #cl_state{}.
 
 -spec stop_remote_api() -> true.
 
@@ -16,37 +15,62 @@ stop_remote_api() ->
     ?REM_NAME ! {remote, mngm, stop},
     unregister(?REM_NAME).
 
+init() ->
+    random:seed(erlang:monotonic_time()),
+    {_, _, {learners, Learners}, {proposers, Proposers}} = utils:read_config(),
+    Lrand = random:uniform(length(Learners)),
+    Prand = random:uniform(length(Proposers)),
+    State = #cl_state{proposer = lists:nth(Prand, Proposers),
+		      learner = lists:nth(Lrand, Learners)},
+    start_remote_api(State).
+
 -spec write(string()) -> ok.
 
 write(Value) ->
-    send_async({proposer, prepare, Value}, ?PROP_NAME).
+    ?REM_NAME ! {remote, propose, Value},
+    ok.
 
--spec read() -> string().
+-spec read() -> string() | ok.
 
 read() ->
-    {value, Value} = send_sync({learner, value_request}, ?LRN_NAME),
-    Value.
-
-
+    ?REM_NAME ! {remote, read, self()},
+    receive
+	{value, Value} ->
+	    Value;
+	_ ->
+	    ok
+    end.
+    
 %% private functions
+-spec start_remote_api(cl_state()) -> true.
 
--spec manager() -> ok.
+start_remote_api(State) ->
+    register(apimanager, spawn(client_api, manager, [State])).
 
-manager() ->
+write_pr(Value, Proposer) ->
+    send_async({?PROP_NAME, prepare, Value}, {?PROP_NAME, Proposer}).
+
+read_pr(Learner, From) ->
+    Reply = send_sync({?LRN_NAME, value_request}, {?LRN_NAME, Learner}),
+    From ! Reply.
+
+-spec manager(cl_state()) -> ok.
+
+manager(State) ->
     process_flag(trap_exit, true),
-    register(?REM_NAME, spawn_link(client_api, remote_api, [])),
+    register(?REM_NAME, spawn_link(client_api, remote_api, [State])),
     receive
 	{mngm, manager, stop} ->
 	    ok;
-	{'EXIT', Pid, normal} ->
+	{'EXIT', _Pid, normal} ->
 	    unregister(apimanager),
 	    ok;
-	{'EXIT', Pid, shutdown} ->
+	{'EXIT', _Pid, shutdown} ->
 	    unregister(apimanager),
 	    ok;
 	{'EXIT', Pid, _Reason} ->
 	    io:format("Process ~p crashed, restarting...~n", [Pid]),
-	    manager()
+	    manager(State)
     end.
 
 -spec send_sync(term(), atom()) -> term().
@@ -59,13 +83,16 @@ send_sync(Msg, Destination) ->
 send_async(Msg, Destination) ->
     gen_server:cast(Destination, Msg).
 
--spec remote_api() -> ok.
+-spec remote_api(cl_state()) -> ok.
 
-remote_api() ->
+remote_api(State) ->
     receive
 	{remote, propose, Value} ->
-	    write(Value),
-	    remote_api();
+	    write_pr(Value, State#cl_state.proposer),
+	    remote_api(State);
+	{remote, read, From} ->
+	    read_pr(State#cl_state.learner, From),
+	    remote_api(State);
 	{remote, mngm, stop} ->
 	    ok
     end.
