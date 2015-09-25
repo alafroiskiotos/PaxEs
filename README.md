@@ -12,6 +12,7 @@ Build
 
 TODO
 ----
+* Make read in client API async
 * Add some documentation
 * Implement failure detector (mmhh)
 * Implement leader election (mmhh)
