@@ -2,20 +2,16 @@
 
 -include_lib("PaxEs/include/paxos_def.hrl").
 
--export([write/1, read/0, stop_remote_api/0, init/0, manager/1, remote_api/1]).
+-export([write/1, read/0, stop/0, start/0, manager/1, remote_api/1]).
 
 -record(cl_state, {proposer :: atom(),
 		  learner :: atom()}).
 
 -type cl_state() :: #cl_state{}.
 
--spec stop_remote_api() -> true.
+-spec start() -> true.
 
-stop_remote_api() ->
-    ?REM_NAME ! {remote, mngm, stop},
-    unregister(?REM_NAME).
-
-init() ->
+start() ->
     random:seed(erlang:monotonic_time()),
     {_, _, {learners, Learners}, {proposers, Proposers}} = utils:read_config(),
     Lrand = random:uniform(length(Learners)),
@@ -23,6 +19,12 @@ init() ->
     State = #cl_state{proposer = lists:nth(Prand, Proposers),
 		      learner = lists:nth(Lrand, Learners)},
     start_remote_api(State).
+
+-spec stop() -> true.
+
+stop() ->
+    ?REM_NAME ! {remote, mngm, stop},
+    unregister(?REM_NAME).
 
 -spec write(string()) -> ok.
 
@@ -47,10 +49,15 @@ read() ->
 start_remote_api(State) ->
     register(apimanager, spawn(client_api, manager, [State])).
 
-write_pr(Value, Proposer) ->
-    send_async({?PROP_NAME, prepare, Value}, {?PROP_NAME, Proposer}).
+-spec write(string(), atom()) -> ok.
 
-read_pr(Learner, From) ->
+write(Value, Proposer) ->
+    send_async({?PROP_NAME, prepare, Value}, {?PROP_NAME, Proposer}),
+    ok.
+
+-spec read(atom(), pid()) -> {value, string()}.
+
+read(Learner, From) ->
     Reply = send_sync({?LRN_NAME, value_request}, {?LRN_NAME, Learner}),
     From ! Reply.
 
@@ -73,12 +80,12 @@ manager(State) ->
 	    manager(State)
     end.
 
--spec send_sync(term(), atom()) -> term().
+-spec send_sync(term(), {atom(), atom()}) -> term().
 
 send_sync(Msg, Destination) ->
     gen_server:call(Destination, Msg).
 
--spec send_async(term(), atom()) -> ok.
+-spec send_async(term(), {atom(), atom()}) -> ok.
 
 send_async(Msg, Destination) ->
     gen_server:cast(Destination, Msg).
@@ -88,10 +95,10 @@ send_async(Msg, Destination) ->
 remote_api(State) ->
     receive
 	{remote, propose, Value} ->
-	    write_pr(Value, State#cl_state.proposer),
+	    write(Value, State#cl_state.proposer),
 	    remote_api(State);
 	{remote, read, From} ->
-	    read_pr(State#cl_state.learner, From),
+	    read(State#cl_state.learner, From),
 	    remote_api(State);
 	{remote, mngm, stop} ->
 	    ok

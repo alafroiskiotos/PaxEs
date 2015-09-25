@@ -12,7 +12,6 @@ Build
 
 TODO
 ----
-* Persist acceptor critical state to file
 * Add some documentation
 * Implement failure detector (mmhh)
 * Implement leader election (mmhh)
