@@ -33,6 +33,7 @@ Terminate the client API with ``client_api:stop().`` and the PaxEs application w
 
 TODO
 ----
+* Make read in client API async
 * Add some documentation
 * Implement failure detector (mmhh)
 * Implement leader election (mmhh)
